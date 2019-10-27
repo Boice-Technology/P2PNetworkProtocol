@@ -1,30 +1,30 @@
 /*
- *
- * The MIT License (MIT)
- *
- * Copyright (c) 2014 Juan Batiz-Benet
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- *
- * This program demonstrate a simple chat application using p2p communication.
- *
- */
+*
+* The MIT License (MIT)
+*
+* Copyright (c) 2014 Juan Batiz-Benet
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*
+* This program demonstrate a simple chat application using p2p communication.
+*
+*/
 package main
 
 import (
@@ -45,44 +45,11 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-func handleStream(s network.Stream) {
-	// Create a buffer stream for non blocking read and write.
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-	go readData(rw)
-	go writeData(rw)
-	// the stream will stay open until you close it (or the other side closes it).
-}
-func readData(rw *bufio.ReadWriter) {
-	for {
-		str, _ := rw.ReadString('\n')
-		if str == "" {
-			return
-		}
-		if str != "\n" {
-			fmt.Print("Read > ", str)
-		}
-	}
-}
-func writeData(rw *bufio.ReadWriter) {
-	stdReader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Print("Send > ")
-		sendData, err := stdReader.ReadString('\n')
-		if err != nil {
-			panic(err)
-		}
-		rw.WriteString(fmt.Sprintf("%s\n", sendData))
-		rw.Flush()
-	}
-}
-
-func main() {
-	sourcePort := flag.Int("sp", 5000, "Source port number")
+func main2() {
+	sourcePort := 5000
 	dest := flag.String("d", "", "Destination multiaddr string")
 
 	flag.Parse()
-	// sp := 5000
-	// sourcePort := &sp
 
 	r := rand.Reader
 
@@ -93,7 +60,12 @@ func main() {
 	}
 
 	// 0.0.0.0 will listen on any interface device.
-	sourceMultiAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", *sourcePort))
+	var sourceMultiAddr multiaddr.Multiaddr
+	if *dest == "" {
+		sourceMultiAddr, _ = multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", sourcePort))
+	} else {
+		sourceMultiAddr, _ = multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", 0))
+	}
 
 	// libp2p.New constructs a new libp2p Host.
 	// Other options can be added here.
@@ -108,26 +80,27 @@ func main() {
 	}
 
 	if *dest == "" {
+		//  It is the first one
+
 		// Set a function as stream handler.
 		// This function is called when a peer connects, and starts a stream with this protocol.
 		// Only applies on the receiving side.
 		host.SetStreamHandler("/chat/1.0.0", handleStream)
 
-		// Let's get the actual TCP port from our listen multiaddr, in case we're using 0 (default; random available port).
-		var port string
-		for _, la := range host.Network().ListenAddresses() {
-			if p, err := la.ValueForProtocol(multiaddr.P_TCP); err == nil {
-				port = p
-				break
-			}
-		}
-		fmt.Println("port", port)
+		// // Let's get the actual TCP port from our listen multiaddr, in case we're using 0 (default; random available port).
+		// var port string
+		// for _, la := range host.Network().ListenAddresses() {
+		// 	if p, err := la.ValueForProtocol(multiaddr.P_TCP); err == nil {
+		// 		port = p
+		// 		break
+		// 	}
+		// }
 
-		if port == "" {
-			panic("was not able to find actual local port")
-		}
+		// if port == "" {
+		// 	panic("was not able to find actual local port")
+		// }
 
-		fmt.Printf("Run './chat -d /ip4/127.0.0.1/tcp/%v/p2p/%s' on another console.\n", port, host.ID().Pretty())
+		fmt.Printf("Run './chat -d /ip4/127.0.0.1/tcp/%v/p2p/%s' on another console.\n", sourcePort, host.ID().Pretty())
 		fmt.Println("You can replace 127.0.0.1 with public IP as well.")
 		fmt.Printf("\nWaiting for incoming connection\n\n")
 
@@ -145,9 +118,13 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		fmt.Println(maddr)
 
 		// Extract the peer ID from the multiaddr.
 		info, err := peer.AddrInfoFromP2pAddr(maddr)
+		fmt.Println(info)
+		fmt.Println(info.ID)
+		fmt.Println(info.Addrs)
 		if err != nil {
 			log.Fatalln(err)
 		}
