@@ -11,14 +11,14 @@ import (
 
 func main() {
 	peer1MessageSender := make(chan peer.MessageToSend, 10)
-	peer1, err := peer.NewChatPeer("127.0.0.1", 5000, peer1MessageSender, func(msg string, senderId string) {
-		fmt.Println("peer1 Received:", msg, "From:", senderId)
+	peer1, err := peer.NewChatPeer("127.0.0.1", 5000, peer1MessageSender, func(msg string, senderAdd string) {
+		fmt.Println("peer1 Received:", msg, "From:", senderAdd)
 
 		// Handle the received message
-		if msg == "Hi peer" {
-			peer1MessageSender <- peer.MessageToSend{"Bye peer", senderId}
+		if msg == "Hello peer" {
+			peer1MessageSender <- peer.MessageToSend{"Hi peer", senderAdd}
 		} else {
-			peer1MessageSender <- peer.MessageToSend{utils.END, senderId}
+			peer1MessageSender <- peer.MessageToSend{":)", senderAdd}
 		}
 	})
 	if err != nil {
@@ -26,30 +26,41 @@ func main() {
 	}
 
 	peer2MessageSender := make(chan peer.MessageToSend, 10)
-	peer2, err := peer.NewChatPeer("127.0.0.1", 5001, peer2MessageSender, func(msg string, senderId string) {
-		fmt.Println("peer2 Received:", msg, "From:", senderId)
+	_, err = peer.NewChatPeer("127.0.0.1", 5001, peer2MessageSender, func(msg string, senderAdd string) {
+		fmt.Println("peer2 Received:", msg, "From:", senderAdd)
 		
 		// Handle the received message
-		if msg == "Hello peer" {
-			peer2MessageSender <- peer.MessageToSend{"Hi peer", senderId}
+		if msg == "Hi peer" {
+			peer2MessageSender <- peer.MessageToSend{"Bye peer", senderAdd}
 		} else {
-			peer2MessageSender <- peer.MessageToSend{":)", senderId}
+			peer2MessageSender <- peer.MessageToSend{utils.END, senderAdd}
 		}
 	})
 	if err != nil {
 		log.Fatalln(err)
 	}
-	err = peer2.ConnectTo(peer1.GetMultiaddr())
+
+	peer3MessageSender := make(chan peer.MessageToSend, 10)
+	_, err = peer.NewChatPeer("127.0.0.1", 5002, peer3MessageSender, func(msg string, senderAdd string) {
+		fmt.Println("peer3 Received:", msg, "From:", senderAdd)
+		
+		// Handle the received message
+		if msg == "Hi peer" {
+			peer3MessageSender <- peer.MessageToSend{"Bye peer", senderAdd}
+		} else {
+			peer3MessageSender <- peer.MessageToSend{utils.END, senderAdd}
+		}
+	})
 	if err != nil {
 		log.Fatalln(err)
 	}
-	
-	fmt.Println("Connected")
 
-	peer1MessageSender <- peer.MessageToSend{"Hello peer", peer2.GetHostId().Pretty()}
+	peer2MessageSender <- peer.MessageToSend{"Hello peer", peer1.GetMultiaddr()}
+	peer3MessageSender <- peer.MessageToSend{"Hello peer", peer1.GetMultiaddr()}
 	
 	time.Sleep(2 * time.Second)
 	
 	close(peer1MessageSender)
 	close(peer2MessageSender)
+	close(peer3MessageSender)
 }

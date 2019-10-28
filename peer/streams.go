@@ -3,53 +3,56 @@ package peer
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"strings"
-
-	"github.com/libp2p/go-libp2p-core/network"
 
 	"github.com/Boice-Technology/P2PNetworkProtocol/utils"
 )
 
 type MessageToSend struct {
-	Content    string
-	ReceiverId string
+	Content     string
+	ReceiverAdd string
 }
 
-func (p *ChatPeer) handleStream(s network.Stream) {
-	// Create a buffer stream for non blocking read and write.
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-	go p.readData(rw)
-	go p.writeData(rw)
-	// the stream will stay open until you close it (or the other side closes it).
-}
-
-func (p *ChatPeer) readData(rw *bufio.ReadWriter) {
+func (p *ChatPeer) readData(r *bufio.Reader) {
 	for {
-		str, e := rw.ReadString('\n')
+		str, e := r.ReadString('\n')
 		if e != nil {
-			break
+			log.Println(e)
 		}
 		str = strings.TrimSuffix(str, "\n")
 		i := strings.Index(str, ":")
 		if i == -1 {
-			// the peer did not send its id; this should not happen
+			// the peer did not send its multiaddr; this should never happen
 			continue
 		}
-		senderId := str[:i]
+		senderAdd := str[:i]
 		msg := str[i+1:]
 		if msg == utils.END {
-			// disconnect from this peer
+			// client has said "bye bye"
+			delete(p.peers, senderAdd)
 			continue
 		}
-		p.writeFunc(msg, senderId)
+		p.writeFunc(msg, senderAdd)
 	}
 }
 
-// If it is a client that is writing, the stream is already created
-// If it is a server, it writes only after it has received the stream, so it is already created
-func (p *ChatPeer) writeData(rw *bufio.ReadWriter) {
+func (p *ChatPeer) handleWrites() {
 	for messageToSend := range p.readFrom {
-		rw.WriteString(fmt.Sprintf("%s:%s\n", p.GetHostId().Pretty(), messageToSend.Content))
-		rw.Flush()
+		w, ok := p.peers[messageToSend.ReceiverAdd]
+		if !ok {
+			err := p.ConnectTo(messageToSend.ReceiverAdd)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			w = p.peers[messageToSend.ReceiverAdd]
+		}
+		p.writeData(w, messageToSend.Content)
 	}
+}
+
+func (p *ChatPeer) writeData(w *bufio.Writer, msg string) {
+	w.WriteString(fmt.Sprintf("%s:%s\n", p.GetMultiaddr(), msg))
+	w.Flush()
 }
