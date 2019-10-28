@@ -3,36 +3,53 @@ package main
 import (
 	"fmt"
 	"time"
+	"log"
 
-	"github.com/Boice-Technology/P2PNetworkProtocol/host"
+	"github.com/Boice-Technology/P2PNetworkProtocol/peer"
+	"github.com/Boice-Technology/P2PNetworkProtocol/utils"
 )
 
 func main() {
-	serverMessageSender := make(chan string, 10)
-	server := host.Server("0.0.0.0", 5000, serverMessageSender, func(msg string) {
-		fmt.Print("Server Received: ", msg)
-	})
+	peer1MessageSender := make(chan peer.MessageToSend, 10)
+	peer1, err := peer.NewChatPeer("127.0.0.1", 5000, peer1MessageSender, func(msg string, senderId string) {
+		fmt.Println("peer1 Received:", msg, "From:", senderId)
 
-	clientMessageSender := make(chan string, 10)
-
-	host.Client("0.0.0.0", 5001, server.GetMultiAddr(), clientMessageSender, func(msg string) {
-		fmt.Print("Client Received: ", msg)
-		
 		// Handle the received message
-		if msg == "Hello client\n" {
-			clientMessageSender <- "Hi server"
+		if msg == "Hi peer" {
+			peer1MessageSender <- peer.MessageToSend{"Bye peer", senderId}
 		} else {
-			clientMessageSender <- ":)"
+			peer1MessageSender <- peer.MessageToSend{utils.END, senderId}
 		}
 	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	peer2MessageSender := make(chan peer.MessageToSend, 10)
+	peer2, err := peer.NewChatPeer("127.0.0.1", 5001, peer2MessageSender, func(msg string, senderId string) {
+		fmt.Println("peer2 Received:", msg, "From:", senderId)
+		
+		// Handle the received message
+		if msg == "Hello peer" {
+			peer2MessageSender <- peer.MessageToSend{"Hi peer", senderId}
+		} else {
+			peer2MessageSender <- peer.MessageToSend{":)", senderId}
+		}
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	err = peer2.ConnectTo(peer1.GetMultiaddr())
+	if err != nil {
+		log.Fatalln(err)
+	}
 	
 	fmt.Println("Connected")
 
-	serverMessageSender <- "Hello client"
-	serverMessageSender <- "Bye client"
-	close(serverMessageSender)
+	peer1MessageSender <- peer.MessageToSend{"Hello peer", peer2.GetHostId().Pretty()}
 	
 	time.Sleep(2 * time.Second)
 	
-	close(clientMessageSender)
+	close(peer1MessageSender)
+	close(peer2MessageSender)
 }
